@@ -166,3 +166,42 @@ node_modules
 
 credentials.json
 pyrightconfig.json
+
+# ==== my start ===== 
+credentials.json
+pyrightconfig.json
+miyao/
+mytest/
+123
+log1.txt
+log2.txt
+mykey.sh
+qmw_test.py
+test.pcm
+test.wav
+test1.py
+test2.py
+torch-2.3.0-cp310-cp310-manylinux1_x86_64.whl
+log-yes.txt
+xxx.py
+test.py
+nohup.out
+my_agent.py
+livekit-server
+livekit-cli_1.4.3_linux_amd64.tar.gz
+livekit-cli
+config-sample.yaml
+123.jpg
+463e8396-ce47-42d7-aab2-9bb48a10a0bc.jpeg
+bak_kitt_agent copy.py
+bak_kitt.py
+chat_template.json
+astt.SpeechEventType.END_OF_SPEECH
+livekit_plugins_silero-0.6.3-py3-none-any.whl
+log1
+output_stream.wav
+t11.py
+
+# ==== my end ===== 
+
+

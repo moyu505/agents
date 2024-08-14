@@ -45,6 +45,7 @@ EventTypes = Literal[
     "agent_speech_interrupted",
     "function_calls_collected",
     "function_calls_finished",
+    "cv_calls_started"
 ]
 
 

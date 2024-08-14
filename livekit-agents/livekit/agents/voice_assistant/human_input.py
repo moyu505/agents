@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Literal
 
 from livekit import rtc
@@ -123,14 +124,18 @@ class HumanInput(utils.EventEmitter[EventTypes]):
                 vad_stream.push_frame(ev.frame)
 
         async def _vad_stream_co() -> None:
+            TURINGASR_START_MSG: str = json.dumps({"isSpeaking":"start"})
+            TURINGASR_END_MSG: str = json.dumps({"isSpeaking":"end"})
             async for ev in vad_stream:
                 if ev.type == voice_activity_detection.VADEventType.START_OF_SPEECH:
                     self._speaking = True
+                    await stt_stream._turing_asr_send(TURINGASR_START_MSG)
                     self.emit("start_of_speech", ev)
                 elif ev.type == voice_activity_detection.VADEventType.INFERENCE_DONE:
                     self._speech_probability = ev.probability
                     self.emit("vad_inference_done", ev)
                 elif ev.type == voice_activity_detection.VADEventType.END_OF_SPEECH:
+                    await stt_stream._turing_asr_send(TURINGASR_END_MSG)
                     self._speaking = False
                     self.emit("end_of_speech", ev)
 

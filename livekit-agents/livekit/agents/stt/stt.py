@@ -113,7 +113,10 @@ class SpeechStream(ABC):
 
     def __aiter__(self) -> AsyncIterator[SpeechEvent]:
         return self
-
+    
+    async def _turing_asr_send(self, msg: str) -> None:
+        pass
+    
     def _check_not_closed(self) -> None:
         if self._event_ch.closed:
             cls = type(self)
