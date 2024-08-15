@@ -32,6 +32,13 @@ from .models import TTSEncoding, TTSModels
 
 _Encoding = Literal["mp3", "pcm"]
 
+def remove_all_punctuation(s):  
+    # 定义一个包含你想要删除的标点符号的正则表达式字符集  
+    # 注意：这里只是一个示例，你可能需要添加更多的标点符号  
+    punctuation_pattern = r'[!"#$%&\'()*+,-./:;<=>?@[\\\]^_`{|}~，。！？：；“”‘’《》【】（）％＃＠＆＊￥＾＋＝｜《》〈〉「」『』【】〔〕〖〗［］｛｝〈〉《》「」「」『』【】〔〕（）［］｛｝､、｡｢｣､･ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝﾞﾟ]+'  
+    # 使用re.sub()函数替换所有匹配的标点为空字符串  
+    cleaned_string = re.sub(punctuation_pattern, '', s)  
+    return cleaned_string  
 
 async def readline_from_stream(stream):  
     buffer = b''  
@@ -418,7 +425,7 @@ class SynthesizeStream(tts.SynthesizeStream):
             parameters = {
                     "spk_id": voiceType,
                     # "instruct_text": voiceType,
-                    "speed":1.0,
+                    # "speed":1.0,
                     # "audio_sr":32000
                 }
             inputJson = dict(
@@ -473,7 +480,7 @@ class SynthesizeStream(tts.SynthesizeStream):
             try:
                 if try_i > 0:
                     await asyncio.sleep(retry_delay)
-
+                print('ttsV2 ws_connect===========>')
                 ws_conn = await self._session.ws_connect(
                     'ws://172.16.1.88:18101/ws_tts_audio',
                     # headers={AUTHORIZATION_HEADER: self._opts.api_key},
@@ -504,14 +511,20 @@ class SynthesizeStream(tts.SynthesizeStream):
         )
         # await ws_conn.send_str(json.dumps(init_pkt))
         eos_sent = False
+        isSend = 0
+        isbobao = 0
+        tmpText = ""
+        voiceType = 'happy'
+        sendStr = ''
 
         async def send_task():
             nonlocal eos_sent
-            VoiceType = 'happy'
+            nonlocal voiceType
+            
             parameters = {
-                    "spk_id": VoiceType,
+                    "spk_id": voiceType,
                     # "instruct_text": voiceType,
-                    "speed":0.9,
+                    # "speed":0.9,
                     # "audio_sr":32000
                 }
             inputJson = dict(
@@ -522,13 +535,70 @@ class SynthesizeStream(tts.SynthesizeStream):
                 parameters=parameters,
                 stream=True
             )
+            
             async for data in word_stream:
+                nonlocal isSend
+                nonlocal tmpText
+                nonlocal isbobao
+                nonlocal sendStr
                 token = data.token
                 if token == "":
+                    print(f'======>ttsV2 send task 空空空')
                     continue  # empty token is closing the stream 
-                inputJson['text'] = token
-                print(f'ttsV2 send task {data}')
-                await ws_conn.send_str(json.dumps(inputJson))
+                if isSend == 0:
+                    tmpText += token
+                    if '播报内容:' in tmpText and isbobao == 0:
+                        array = tmpText.split('播报内容:')
+                        # 生成风格: Tender.;
+                        tmpType = array[0].replace('生成风格', '')
+                        # 删除所有的标点
+                        voiceType = remove_all_punctuation(tmpType).lower()
+                        print('==>提取风格:', voiceType)
+                        # 替换 非法标签 <|HAPPY|>
+                        if '<|HAPPY|>' in token or 'happy' in voiceType or 'joy' in voiceType:
+                            # voiceType = 'happy'
+                            voiceType = EmotionalTTS['happy']
+                            # voiceType = EmotionalTTS['joy']
+                        elif '<|ANGRY|>' in token or 'angry' in voiceType or 'anger' in voiceType:
+                            voiceType = EmotionalTTS['angry']
+                            # voiceType = EmotionalTTS['anger']
+                        elif '<|SAD|>' in token or 'sad' in voiceType or 'sadness' in voiceType:
+                            voiceType = EmotionalTTS['sad']
+                            # voiceType = EmotionalTTS['sadness']
+                        elif '<|FEARFUL|>' in token or 'fearful' in voiceType or 'fear' in voiceType:
+                            # voiceType = EmotionalTTS['fearful']
+                            voiceType = EmotionalTTS['fear']
+                        elif '<|SURPRISED|>' in token or 'surprised' in voiceType or 'surprise' in voiceType:
+                            # voiceType = EmotionalTTS['surprised']
+                            voiceType = EmotionalTTS['surprise']
+                        elif '<|confused|>' in token or 'confused' in voiceType:
+                            # voiceType = EmotionalTTS['surprised']
+                            voiceType = EmotionalTTS['confused']
+                        elif voiceType in EmotionalTTS:
+                            voiceType = EmotionalTTS[voiceType]
+                        else:
+                            voiceType = 'happy'
+                        # 剩余的内容是否够一个词
+                        sendStr = array[1].strip()
+                        isSend = 1
+                        isbobao = 1
+                        inputJson['parameters']['spk_id'] = voiceType
+                        # if len(sendStr) > 0:
+                        #     inputJson['text'] = sendStr
+                        #     print(f'======>ttsV2 send task {data}')
+                        #     await ws_conn.send_str(json.dumps(inputJson))
+                        tmpText = ''
+                        continue
+                    elif len(tmpText) > 20:
+                        isSend = 1
+                else:
+                    if not re.search(r'<strong>.*?</strong>', token) and not re.search(r'<laughter>.*?</laughter>', token):
+                        # 删除所有带 <> 的标签
+                        token = re.sub(r'<.*?>', '', token)
+                    inputJson['text'] = sendStr + token
+                    sendStr = ''
+                    print(f'======>ttsV2 send task {data}')
+                    await ws_conn.send_str(json.dumps(inputJson))
 
             # no more token, mark eos
             # eos_pkt = dict(text="")
@@ -594,11 +664,11 @@ class SynthesizeStream(tts.SynthesizeStream):
                 )
             )
             pass
-        elif data['index'] == -1:
+        elif data['code'] == 200 and data['index'] == -1:
             print(data)
             return
         else:
-            print(f"Error: {data['message']}")
+            print(f"Error: {data}")
             return
         # encoding = _encoding_from_format(self._opts.encoding)
         # if data.get("audio"):

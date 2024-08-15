@@ -245,14 +245,14 @@ async def _stream_synthesis_task(
         async for seg in streamed_text:
             gpt_streamed_text += seg
             if not handle.tts_forwarder.closed:
-                print(f'==>_stream_synthesis_task tts_forwarder_seg:{seg}')
+                # print(f'==>_stream_synthesis_task tts_forwarder_seg:{seg}')
                 handle.tts_forwarder.push_text(seg)
 
             if read_atask is None:
-                print(f'==>_stream_synthesis_task create read_atask:{seg}')
+                # print(f'==>_stream_synthesis_task create read_atask:{seg}')
                 # start the task when we receive the first text segment (so start_time is more accurate)
                 read_atask = asyncio.create_task(_read_generated_audio_task())
-            print(f'==> _stream_synthesis_task tts_stream_seg:{seg}')
+            # print(f'==> _stream_synthesis_task tts_stream_seg:{seg}')
             tts_stream.push_text(seg)
 
         print(f'_stream_synthesis_task 结束streamed_text {gpt_streamed_text}')
