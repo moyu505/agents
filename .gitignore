@@ -187,7 +187,6 @@ xxx.py
 test.py
 nohup.out
 my_agent.py
-livekit-server
 livekit-cli_1.4.3_linux_amd64.tar.gz
 livekit-cli
 config-sample.yaml
