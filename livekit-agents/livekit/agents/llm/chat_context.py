@@ -113,3 +113,10 @@ class ChatContext:
 
     def copy(self) -> ChatContext:
         return ChatContext(messages=[m.copy() for m in self.messages])
+    
+    def print(self) -> None:
+        print('llm chat context:===start>')
+        for message in self.messages:
+            print(f"{message.role}: {message.content}")
+        print('llm chat context:===end>')
+        pass

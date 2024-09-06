@@ -67,6 +67,8 @@ class LLM(llm.LLM):
             ),
         )
         self._running_fncs: MutableSet[asyncio.Task[Any]] = set()
+        self._img_list = []
+        self.MAXIMAGE = 1
 
     @staticmethod
     def with_azure(
@@ -192,12 +194,17 @@ class LLM(llm.LLM):
             base_url=base_url,
         )
 
+    def push_video(self,frame: rtc.VideoFrame):
+        self._img_list.append(frame)
+        if len(self._img_list) > self.MAXIMAGE:
+            self._img_list.pop(0)
+        pass
     def chat(
         self,
         *,
         chat_ctx: llm.ChatContext,
         fnc_ctx: llm.FunctionContext | None = None,
-        temperature: float | None = None,
+        temperature: float | None = 0.9,
         n: int | None = 1,
         parallel_tool_calls: bool | None = None,
     ) -> "LLMStream":
@@ -211,8 +218,21 @@ class LLM(llm.LLM):
 
             if fnc_ctx and parallel_tool_calls is not None:
                 opts["parallel_tool_calls"] = parallel_tool_calls
-
+        if len(self._img_list) >= 1:
+            # 将最后一个messages加入图片
+            img = llm.ChatImage(image=self._img_list[-1])
+            if isinstance(chat_ctx.messages[-1].content, str):
+                inputStr = chat_ctx.messages[-1].content
+                chat_ctx.messages[-1].content = [inputStr, img]
+            else:
+                chat_ctx.messages[-1].content.append(img)
+            pass
+        # 控制上下文轮数
+        if len(chat_ctx.messages) > 14:
+            chat_ctx.messages = chat_ctx.messages[:3] + chat_ctx.messages[5:]
+            pass
         messages = _build_oai_context(chat_ctx, id(self))
+        
         cmp = self._client.chat.completions.create(
             messages=messages,
             model=self._opts.model,
@@ -221,6 +241,8 @@ class LLM(llm.LLM):
             stream=True,
             **opts,
         )
+        if len(self._img_list) >= self.MAXIMAGE:
+            self._img_list.pop(0)
 
         return LLMStream(oai_stream=cmp, chat_ctx=chat_ctx, fnc_ctx=fnc_ctx)
 

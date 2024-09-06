@@ -4,6 +4,7 @@ import abc
 import asyncio
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator
+from livekit import rtc
 
 from .. import utils
 from . import function_context
@@ -30,12 +31,16 @@ class ChatChunk:
 
 class LLM(abc.ABC):
     @abc.abstractmethod
+    def push_video(self,frame: rtc.VideoFrame):
+        pass
+    
+    @abc.abstractmethod
     def chat(
         self,
         *,
         chat_ctx: ChatContext,
         fnc_ctx: function_context.FunctionContext | None = None,
-        temperature: float | None = None,
+        temperature: 0.9,
         n: int | None = None,
         parallel_tool_calls: bool | None = None,
     ) -> "LLMStream": ...

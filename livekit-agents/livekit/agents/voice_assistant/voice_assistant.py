@@ -81,6 +81,7 @@ class AssistantCallContext:
 def _default_will_synthesize_assistant_reply(
     assistant: VoiceAssistant, chat_ctx: ChatContext
 ) -> LLMStream:
+    chat_ctx.print()
     return assistant.llm.chat(chat_ctx=chat_ctx, fnc_ctx=assistant.fnc_ctx)
 
 
@@ -342,6 +343,7 @@ class VoiceAssistant(utils.EventEmitter[EventTypes]):
             room=self._room,
             vad=self._vad,
             stt=self._stt,
+            llm=self._llm,
             participant=participant,
             transcription=self._opts.transcription.user_transcription,
         )
@@ -369,6 +371,7 @@ class VoiceAssistant(utils.EventEmitter[EventTypes]):
             self._plotter.plot_value("vad_probability", ev.probability)
 
             if ev.speech_duration >= self._opts.int_speech_duration:
+                # print(f'speech_duration=>{ev.speech_duration} int_speech_duration=>{self._opts.int_speech_duration}')
                 self._interrupt_if_possible()
 
         def _on_end_of_speech(ev: vad.VADEvent) -> None:
@@ -382,6 +385,7 @@ class VoiceAssistant(utils.EventEmitter[EventTypes]):
 
         def _on_final_transcript(ev: stt.SpeechEvent) -> None:
             new_transcript = ev.alternatives[0].text
+            print(f'new_transcript:{new_transcript}')
             self._transcribed_text += (
                 " " if self._transcribed_text else ""
             ) + new_transcript
@@ -736,6 +740,7 @@ class VoiceAssistant(utils.EventEmitter[EventTypes]):
             interim_words = self._opts.transcription.word_tokenizer.tokenize(
                 text=self._transcribed_interim_text
             )
+            print(f'interim_words==>{interim_words} int_min_words==>{self._opts.int_min_words}')
             if len(interim_words) < self._opts.int_min_words:
                 return
 

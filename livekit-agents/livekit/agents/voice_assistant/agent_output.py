@@ -182,7 +182,7 @@ async def _str_synthesis_task(text: str, handle: SynthesisHandle) -> None:
 
     try:
         async for audio in handle._tts.synthesize(text):
-            print(f'_str_synthesis_task: received frame {text}')
+            # print(f'_str_synthesis_task: received frame {text}')
             if first_frame:
                 first_frame = False
                 logger.debug(
