@@ -103,6 +103,7 @@ class ChatMessage:
 
 @dataclass
 class ChatContext:
+    roomId: str | None = None
     messages: list[ChatMessage] = field(default_factory=list)
 
     def append(
@@ -112,7 +113,9 @@ class ChatContext:
         return self
 
     def copy(self) -> ChatContext:
-        return ChatContext(messages=[m.copy() for m in self.messages])
+        copyChatContext = ChatContext(messages=[m.copy() for m in self.messages])
+        copyChatContext.roomId = self.roomId
+        return copyChatContext
     
     def print(self) -> None:
         print('llm chat context:===start>')

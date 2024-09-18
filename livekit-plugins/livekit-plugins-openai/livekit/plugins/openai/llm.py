@@ -27,6 +27,8 @@ import openai
 from openai.types.chat import ChatCompletionChunk, ChatCompletionMessageParam
 from openai.types.chat.chat_completion_chunk import Choice
 
+from my_plugins.turing_logs.sls_aliyun import put_logs
+
 from .log import logger
 from .models import (
     ChatModels,
@@ -195,6 +197,7 @@ class LLM(llm.LLM):
         )
 
     def push_video(self,frame: rtc.VideoFrame):
+        # print('====push_video====')
         self._img_list.append(frame)
         if len(self._img_list) > self.MAXIMAGE:
             self._img_list.pop(0)
@@ -220,17 +223,60 @@ class LLM(llm.LLM):
                 opts["parallel_tool_calls"] = parallel_tool_calls
         if len(self._img_list) >= 1:
             # 将最后一个messages加入图片
+            print(f'存在图像=={len(self._img_list)}')
+            
+            messagesList = chat_ctx.messages
+            len1 = len(messagesList)
+            for i in range(len1):
+                content = messagesList[i].content
+                if isinstance(content, list):
+                    # 删除图片
+                    messagesList[i].content = content[0]
+                    pass
+                pass
+                
+            # if len(chat_ctx.messages) >= 4:
+                
+                # print(f'==inputStr2========{inputStr2}====================={type(inputStr2)}=====')
+                # if isinstance(chat_ctx.messages[-3].content, str):
+                #     print(f'==========xyxyxyxyxy=======================')
+                # else:
+                #     # 循环的删除 messages的图片
+                #     len1 = len(inputStr2)
+                #     for ii, inputStr in enumerate(inputStr2) :
+
+                #         pass
+                #     if isinstance(chat_ctx.messages[-3].content, list):
+                #         for ii, inputStr in enumerate(inputStr2) :
+                #             if isinstance(inputStr, str):
+                #                 print(f'==========删除最后一个messages的图片==============')
+                #                 chat_ctx.messages[-3].content = inputStr
+                #                 break
+                #     # chat_ctx.messages[-3].content = inputStr2
+               
+            # 加入图片
             img = llm.ChatImage(image=self._img_list[-1])
+            inputStr = chat_ctx.messages[-1].content
+            print(f'====inputStr======{inputStr}====================={type(inputStr)}=====')
             if isinstance(chat_ctx.messages[-1].content, str):
-                inputStr = chat_ctx.messages[-1].content
+                
                 chat_ctx.messages[-1].content = [inputStr, img]
             else:
+                print(f'存在多个图像=={len(chat_ctx.messages[-1].content)}')
                 chat_ctx.messages[-1].content.append(img)
+            
             pass
+        else:
+            print(f'没有图像=={len(self._img_list)}')
+        print('========llm1=================')
+        chat_ctx.print()
+        print('========llm2=================')
         # 控制上下文轮数
-        if len(chat_ctx.messages) > 14:
-            chat_ctx.messages = chat_ctx.messages[:3] + chat_ctx.messages[5:]
+        if len(chat_ctx.messages) > 11:
+            # chat_ctx.messages = chat_ctx.messages[:3] + chat_ctx.messages[5:]
+            chat_ctx.messages = chat_ctx.messages[:0] + chat_ctx.messages[3:]
             pass
+        print(f'===============上下文轮数=={len(chat_ctx.messages)}')
         messages = _build_oai_context(chat_ctx, id(self))
         
         cmp = self._client.chat.completions.create(
@@ -244,7 +290,7 @@ class LLM(llm.LLM):
         if len(self._img_list) >= self.MAXIMAGE:
             self._img_list.pop(0)
 
-        return LLMStream(oai_stream=cmp, chat_ctx=chat_ctx, fnc_ctx=fnc_ctx)
+        return LLMStream(oai_stream=cmp, chat_ctx=chat_ctx, fnc_ctx=fnc_ctx,inputMessage=messages)
 
 
 class LLMStream(llm.LLMStream):
@@ -254,6 +300,7 @@ class LLMStream(llm.LLMStream):
         oai_stream: Awaitable[openai.AsyncStream[ChatCompletionChunk]],
         chat_ctx: llm.ChatContext,
         fnc_ctx: llm.FunctionContext | None,
+        inputMessage: None,
     ) -> None:
         super().__init__(chat_ctx=chat_ctx, fnc_ctx=fnc_ctx)
         self._awaitable_oai_stream = oai_stream
@@ -263,11 +310,13 @@ class LLMStream(llm.LLMStream):
         self._tool_call_id: str | None = None
         self._fnc_name: str | None = None
         self._fnc_raw_arguments: str | None = None
+        self.inputMessage = inputMessage
+        self._final_res = ""
 
     async def aclose(self) -> None:
         if self._oai_stream:
             await self._oai_stream.close()
-
+        print('self._final_res:',self._final_res )
         return await super().aclose()
 
     async def __anext__(self):
@@ -275,10 +324,17 @@ class LLMStream(llm.LLMStream):
             self._oai_stream = await self._awaitable_oai_stream
 
         async for chunk in self._oai_stream:
+            if chunk.choices[0].finish_reason == 'stop':
+                # 结束上传日志
+                logList = [{'input':self.inputMessage}, {'output':self._final_res}, {"roomID": self._chat_ctx.roomId}]
+                put_logs(logList)
+
             for choice in chunk.choices:
                 chat_chunk = self._parse_choice(choice)
                 if chat_chunk is not None:
                     return chat_chunk
+                pass
+            
 
         raise StopAsyncIteration
 
@@ -308,7 +364,10 @@ class LLMStream(llm.LLMStream):
         if choice.finish_reason == "tool_calls":
             # we're done with the tool calls, run the last one
             return self._try_run_function(choice)
-
+        
+        if delta.content is not None:
+            self._final_res += delta.content
+            # print('===>', self._final_res)
         return llm.ChatChunk(
             choices=[
                 llm.Choice(
@@ -421,6 +480,7 @@ def _build_oai_image_content(image: llm.ChatImage, cache_key: Any):
 
             encoded_data = utils.images.encode(image.image, opts)
             image._cache[cache_key] = base64.b64encode(encoded_data).decode("utf-8")
+            print('======image opts======', opts)
 
         return {
             "type": "image_url",

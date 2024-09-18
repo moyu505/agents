@@ -26,6 +26,7 @@ from typing import Any, List, Literal
 import aiohttp
 from livekit import rtc
 from livekit.agents import tokenize, tts, utils
+from my_plugins.turing_logs.sls_aliyun import put_logs
 
 from .log import logger
 from .models import TTSEncoding, TTSModels
@@ -182,7 +183,8 @@ def init_emotional_tts():
     from openpyxl import load_workbook  
   
     # 加载xlsx文件  
-    workbook = load_workbook(filename='./turing_tts/情感控制-JZQ-240801-funingna.xlsx')
+    #workbook = load_workbook(filename='./turing_tts/情感控制-JZQ-240801-funingna.xlsx')
+    workbook = load_workbook(filename='my_plugins/turing_tts/情感控制-JZQ-240801-funingna.xlsx')
     
     # 选择工作表  
     # sheet = workbook['情绪控制']  # 根据你的工作表名称进行更改  
@@ -215,6 +217,7 @@ class _TTSOptions:
     streaming_latency: int
     word_tokenizer: tokenize.WordTokenizer
     chunk_length_schedule: list[int]
+    room: rtc.Room | None = None
 
 EmotionalTTS = init_emotional_tts()
 
@@ -234,6 +237,8 @@ class TTS(tts.TTS):
         ),
         chunk_length_schedule: list[int] = [80, 120, 200, 260],  # range is [50, 500]
         http_session: aiohttp.ClientSession | None = None,
+        room: rtc.Room | None = None,
+
     ) -> None:
         super().__init__(
             capabilities=tts.TTSCapabilities(
@@ -242,6 +247,7 @@ class TTS(tts.TTS):
             sample_rate=_sample_rate_from_format(encoding),
             num_channels=1,
         )
+        self.room = room
         api_key = api_key or os.environ.get("ELEVEN_API_KEY")
         if not api_key:
             raise ValueError("ELEVEN_API_KEY must be set")
@@ -256,6 +262,7 @@ class TTS(tts.TTS):
             streaming_latency=streaming_latency,
             word_tokenizer=word_tokenizer,
             chunk_length_schedule=chunk_length_schedule,
+            room=room,
         )
         self._session = http_session
 
@@ -491,22 +498,23 @@ class SynthesizeStream(tts.SynthesizeStream):
             async for dict1  in readJson_from_stream(resp.content): 
                 if dict1:
                     result = dict1
+                    logList = [{'ttsInput':inputJson}, {'ttsOutput':dict1}, {"roomID": self._opts.room.name}]
+                    put_logs(logList)
                     if result['code'] == 200 :
                         pcm_base64 = result['data']
                         pcmData = base64.decodebytes(pcm_base64.encode())
                         chunk_frame = rtc.AudioFrame(
-                        data=pcmData,
-                        sample_rate=self._opts.sample_rate,
-                        num_channels=1,
-                        samples_per_channel=len(pcmData) // 2,
-                    )
+                                data=pcmData,
+                                sample_rate=self._opts.sample_rate,
+                                num_channels=1,
+                                samples_per_channel=len(pcmData) // 2,)
                         self._event_ch.send_nowait(
-                            tts.SynthesizedAudio(
-                                request_id=request_id,
-                                segment_id=segment_id,
-                                frame=chunk_frame,
-                            )
-                        )
+                                        tts.SynthesizedAudio(
+                                            request_id=request_id,
+                                            segment_id=segment_id,
+                                            frame=chunk_frame,
+                                        )
+                                    )
                     else:
                         print(f"Error: {result['message']}")
                         break
